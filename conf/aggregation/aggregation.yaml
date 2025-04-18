@@ -1,0 +1,9 @@
+daily: 
+  function: "numpy.mean"
+  string: mean
+
+monthly: 
+  function: "numpy.mean"
+  string: mean
+
+variable: ['t2m', 'd2m']

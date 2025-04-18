@@ -14,15 +14,17 @@ with hydra.initialize(config_path="conf", version_base=None):
     cfg = hydra.compose(config_name="config", overrides=[])
     print(OmegaConf.to_yaml(cfg))
 
-# read list of years
+# read list of variables to parellelize over
 years_cfg = OmegaConf.to_container(cfg.query.year, resolve=True)
 months_cfg = OmegaConf.to_container(cfg.query.month, resolve=True)
-#day_cfg = OmegaConf.to_container(cfg.query.day, resolve=True)
-#time_cfg = OmegaConf.to_container(cfg.query.time, resolve=True)
+variable_cfg = OmegaConf.to_container(cfg.query.variable, resolve=True)
+agg_variable_cfg = OmegaConf.to_container(cfg.aggregation.variable, resolve=True)
 
 rule all:
     input:
-        expand(data_dir / "input/{year}_{month}.nc", year=years_cfg, month=months_cfg)
+        expand(data_dir / "input/{year}_{month}.nc", year=years_cfg, month=months_cfg),#, variable=variable_cfg)
+        expand(data_dir / "intermediate/environmental_exposure-era5_healthshed_{variable}_{year}_{month}.parquet", 
+               variable=agg_variable_cfg, year=years_cfg, month=months_cfg)
 
 rule test_api:
     output:
@@ -37,3 +39,13 @@ rule download_raw_era5:
         """
         python src/era5_sandbox/download.py "++query.year={wildcards.year}" "++query.month={wildcards.month}"
         """
+
+rule spatial_aggregate_raw_era5:
+    input:
+        data_dir / "input/{year}_{month}.nc"
+    output:
+        data_dir / "intermediate/environmental_exposure-era5_healthshed_{variable}_{year}_{month}.parquet"
+    params:
+        variable="{variable}"
+    script:
+        "src/era5_sandbox/aggregate.py"

@@ -1,20 +1,27 @@
 defaults:
   - _self_
   - datapaths: datapaths
+  - aggregation: aggregation
 
 development_mode: false
 
 CDS_API_KEY: 
   path: "$HOME/.cdsapirc"
 
-gadm_file: "https://geodata.ucdavis.edu/gadm/gadm4.1/gpkg/gadm41_MDG.gpkg"
+GOOGLE_DRIVE_AUTH_JSON:
+  path: "sandbox/harvard-csph-driveauth-f5f9a2682ecf.json"
+  healthsheds_id: "healthsheds2022.zip"
+
+mdg_shapefile: "https://data.humdata.org/dataset/26fa506b-0727-4d9d-a590-d2abee21ee22/resource/ed94d52e-349e-41be-80cb-62dc0435bd34/download/mdg_adm_bngrc_ocha_20181031_shp.zip"
+
+dataset: "reanalysis-era5-single-levels"
 
 query: 
   product_type: reanalysis
   # check precipitation
   # variable: ["2m_dewpoint_temperature", "2m_temperature", "skin_temperature", "total_precipitation"]
   variable: ["2m_dewpoint_temperature", "2m_temperature"]
-  year: [2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024]
+  year: [2009, 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024]
   month: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
   day: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31]
   time: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23]
