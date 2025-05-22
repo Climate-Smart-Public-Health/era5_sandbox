@@ -1,9 +1,44 @@
-daily: 
-  function: "numpy.mean"
-  string: mean
+aggregation:
+  t2m:
+    hourly_to_daily:
+      - name: mean
+        function: "numpy.nanmean"
+      - name: min
+        function: "numpy.nanmin"
+      - name: max
+        function: "numpy.nanmax"
+    daily_to_healthshed:
+      - name: mean
+        function: "numpy.nanmean"
 
-monthly: 
-  function: "numpy.mean"
-  string: mean
+  d2m:
+    hourly_to_daily:
+      - name: mean
+        function: "numpy.nanmean"
+      - name: min
+        function: "numpy.nanmin"
+      - name: max
+        function: "numpy.nanmax"
+    daily_to_healthshed:
+      - name: mean
+        function: "numpy.nanmean"
 
-variable: ['t2m', 'd2m']
+  tp:
+    hourly_to_daily:
+      - name: total
+        function: "numpy.nansum"
+    daily_to_healthshed:
+      - name: mean
+        function: "numpy.nanmean"
+
+  swvl1:
+    hourly_to_daily:
+      - name: mean
+        function: "numpy.nanmean"
+      - name: min
+        function: "numpy.nanmin"
+      - name: max
+        function: "numpy.nanmax"
+    daily_to_healthshed:
+      - name: mean
+        function: "numpy.nanmean"

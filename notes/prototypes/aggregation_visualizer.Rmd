@@ -1,0 +1,380 @@
+---
+title: "Visualizing the Downloads"
+format: html
+params:
+  output_files: 
+    value:
+      raw_na_summary: "data/testing/raw_na_summary.csv"
+      temp_agg: "data/testing/temperature_agg_long.csv"
+      precip_agg: "data/testing/precipitation_agg_long.csv"
+      dewpoint_agg: "data/testing/dewpoint_agg_long.csv"
+  in_pipeline: false
+---
+Let's do a quick visualization dashboard for the downloaded
+data for QA purposes and learning how to manipulate spatial features
+data.
+
+## Testing
+
+First let's make sure we know how to do this in R in general:
+
+```{r}
+library(leaflet)
+library(terra)
+library(dplyr)
+library(here)
+library(arrow)
+library(sf)
+library(purrr)
+library(furrr)
+library(tibble)
+library(tidyr)
+library(readr)
+library(stringr)
+library(lubridate)
+library(ggplot2)
+library(glue)
+
+#params <- rmarkdown::yaml_front_matter(here("notes/prototypes/aggregation_visualizer.Rmd"))$params
+#message(params)
+```
+
+```{r}
+here("data", "input") %>% list.files(full.names=TRUE, pattern = "madagascar|nepal") -> raw_downloads
+```
+
+```{r}
+# parallelize some stuff
+# make sure you start the job with the appropriate number of cpus per task
+plan(multicore, workers = 4)
+```
+
+```{r, eval=FALSE}
+ex_data <- str_subset(raw_downloads, "2019_12") %>% str_subset("madagascar")
+
+nc_data <- rast(ex_data)
+
+# Print a summary of the dataset
+print(nc_data)
+
+# Summarize NA values for each variable
+na_summary <- future_map_dfr(1:500, function(i) {
+  layer_name <- names(nc_data)[i]
+  na_count <- sum(is.na(values(nc_data[[i]])))
+  total_count <- ncell(nc_data[[i]])
+  tibble(
+    layer = layer_name,
+    na_count = na_count,
+    total_count = total_count,
+    na_percentage = (na_count / total_count) * 100
+  )
+})
+
+na_summary %>% summary()
+```
+
+
+Now let's wrap that in a function:
+
+```{r, eval=FALSE}
+summarize_netcdf_na <- function(nc_data) {
+
+  nc_data <- rast(nc_data)
+
+  na_summary <- future_map_dfr(1:nlyr(nc_data), function(i) { #nlyr(nc_data)
+    layer_name <- names(nc_data)[i]
+    na_count <- sum(is.na(values(nc_data[[i]])))
+    total_count <- ncell(nc_data[[i]])
+    tibble(
+      layer = layer_name,
+      na_count = na_count,
+      total_count = total_count,
+      na_percentage = (na_count / total_count) * 100
+    )
+  })
+
+}
+
+```
+
+```{r, eval=FALSE}
+set_names(raw_downloads) %>% 
+  map(summarize_netcdf_na) %>% 
+  tibble::enframe() %>%
+  unnest() -> raw_na_summary
+```
+
+```{r}
+if(FALSE) {
+  write.csv(raw_na_summary, here("data/testing/raw_na_summary.csv"))
+}
+summaries <- read_csv(here("data/testing/raw_na_summary.csv"))
+```
+
+```{r}
+summaries %>% summary()
+```
+
+It looks like there are no NAs in the raw downloads...
+
+Checking the daily aggregations then:
+
+```{r}
+here("data", "intermediate") %>% 
+  list.files(full.names=TRUE, pattern = "madagascar|nepal") -> mid_aggregations
+```
+
+
+
+```{r}
+str_subset(mid_aggregations, "precipitation") %>%
+  set_names() %>%
+  future_map(function(x) {
+    df <- read_parquet(x, col_select = -geometry)
+    # Rename either fs_uid or fid to healthshed_id
+    if ("fs_uid" %in% names(df)) {
+      df <- df %>% rename(healthshed_id = fs_uid)
+    } else if ("fid" %in% names(df)) {
+      df <- df %>% rename(healthshed_id = fid)
+    }
+    df %>% mutate(healthshed_id = as.character(healthshed_id))
+  }) %>%
+  tibble::enframe() %>%
+  unnest() -> precipitation_agg
+
+str_subset(mid_aggregations, "2m_temperature") %>%
+  set_names() %>%
+  future_map(function(x) {
+    df <- read_parquet(x, col_select = -geometry)
+    # Rename either fs_uid or fid to healthshed_id
+    if ("fs_uid" %in% names(df)) {
+      df <- df %>% rename(healthshed_id = fs_uid)
+    } else if ("fid" %in% names(df)) {
+      df <- df %>% rename(healthshed_id = fid)
+    }
+    df %>% mutate(healthshed_id = as.character(healthshed_id))
+  }) %>%
+  tibble::enframe() %>%
+  unnest() -> temperature_agg
+
+str_subset(mid_aggregations, "2m_dew") %>%
+  set_names() %>%
+  future_map(function(x) {
+    df <- read_parquet(x, col_select = -geometry)
+    # Rename either fs_uid or fid to healthshed_id
+    if ("fs_uid" %in% names(df)) {
+      df <- df %>% rename(healthshed_id = fs_uid)
+    } else if ("fid" %in% names(df)) {
+      df <- df %>% rename(healthshed_id = fid)
+    }
+    df %>% mutate(healthshed_id = as.character(healthshed_id))
+  }) %>%
+  tibble::enframe() %>%
+  unnest() -> dewpoint_agg
+
+str_subset(mid_aggregations, "soil") %>%
+  set_names() %>%
+  future_map(function(x) {
+    df <- read_parquet(x, col_select = -geometry)
+    # Rename either fs_uid or fid to healthshed_id
+    if ("fs_uid" %in% names(df)) {
+      df <- df %>% rename(healthshed_id = fs_uid)
+    } else if ("fid" %in% names(df)) {
+      df <- df %>% rename(healthshed_id = fid)
+    }
+    df %>% mutate(healthshed_id = as.character(healthshed_id))
+  }) %>%
+  tibble::enframe() %>%
+  unnest() -> soil_agg
+```
+
+So now that we have the data read in, we can summarize and visualize it.
+
+```{r}
+dewpoint_agg %>%
+  mutate(date = str_match(name, "_(\\d{4}_\\d+)\\.parquet$")[,2]) %>%
+  mutate(geography = str_match(name, "madagascar|nepal")[,1]) %>%
+  pivot_longer(cols = -c(name, date, healthshed_id, geography), names_to = "layer") %>%
+  filter(!is.na(value)) %>%
+  mutate(day = str_match(layer, "day_(\\d{2})_")[,2]) %>%
+  mutate(stat = str_extract(layer,"mean|min|max|total")) %>%
+  mutate(date = str_c(date, day, sep="_") %>% ymd()) %>%
+  mutate(exposure ="dewpoint")-> dewpoint_agg_long
+
+temperature_agg %>%
+  mutate(date = str_match(name, "_(\\d{4}_\\d+)\\.parquet$")[,2]) %>%
+  mutate(geography = str_match(name, "madagascar|nepal")[,1]) %>%
+  pivot_longer(cols = -c(name, date, healthshed_id, geography), names_to = "layer") %>%
+  filter(!is.na(value)) %>%
+  mutate(day = str_match(layer, "day_(\\d{2})_")[,2]) %>%
+  mutate(stat = str_extract(layer,"mean|min|max|total")) %>%
+  mutate(date = str_c(date, day, sep="_") %>% ymd()) %>%
+  mutate(exposure ="temperature") -> temperature_agg_long
+
+precipitation_agg %>%
+  mutate(date = str_match(name, "_(\\d{4}_\\d+)\\.parquet$")[,2]) %>%
+  mutate(geography = str_match(name, "madagascar|nepal")[,1]) %>%
+  pivot_longer(cols = -c(name, date, healthshed_id, geography), names_to = "layer") %>%
+  filter(!is.na(value)) %>%
+  mutate(day = str_match(layer, "day_(\\d{2})_")[,2]) %>%
+  mutate(stat = str_extract(layer,"mean|min|max|total")) %>%
+  mutate(date = str_c(date, day, sep="_") %>% ymd()) %>%
+  mutate(exposure ="precipitation") -> precipitation_agg_long
+```
+
+```{r}
+kelvin_to_celsius <- function(x) {
+  x - 273.15
+}
+```
+
+Read in the healthshed geometries:
+```{r}
+mdg_geometry <- read_parquet(here("data/testing/mdg_healthsheds.parquet")) %>%
+    mutate(geometry = st_as_sfc(geometry)) %>% 
+    st_as_sf() %>%
+    mutate(healthshed_id = as.character(fs_uid))
+
+npl_geometry <- read_parquet(here("data/testing/nepal_healthsheds.parquet")) %>%
+    mutate(geometry = st_as_sfc(geometry)) %>% 
+    st_as_sf() %>%
+    mutate(healthshed_id = as.character(fid))
+```
+
+Now we can visualize the data. Here's a loop to go through all of the years:
+
+
+```{r, eval=params$in_pipeline}
+plot_by_year <- function(df, year, month, geography, stat, exposure) {
+  
+  if(exposure == "temperature") {
+    unit <- "°C"
+    range <- c(10, 40)
+  } else if(exposure == "precipitation") {
+    unit <- "mm"
+    range <- c(0, 0.4)
+  } else if(exposure == "dewpoint") {
+    unit <- "°C"
+    range <- c(-10, 30)
+  }
+
+  if(geography == "madagascar") {
+    geometry <- mdg_geometry
+  } else if(geography == "nepal") {
+    geometry <- npl_geometry
+  }
+  output_path <- here("notes/prototypes/figures", glue("{geography}_{stat}_{exposure}_{year}-{month}.png"))
+
+  message(glue("Generating image: {output_path}"))
+
+  df %>%
+    filter(stat == stat) %>%
+    filter(geography == geography) %>%
+    filter(year(date) == year) %>%
+    filter(month(date) == month) %>%
+    mutate(value = ifelse(stat =="total", value, kelvin_to_celsius(value))) %>%
+    group_by(geography, year(date), healthshed_id) %>%
+    summarize(mean_temp = mean(value, na.rm=TRUE)) %>%
+    ungroup() %>%
+    left_join(geometry, by = "healthshed_id") %>%
+    st_as_sf() %>%
+    ggplot() +
+      geom_sf(aes(fill = mean_temp)) +
+      scale_fill_viridis_c(option = "C", ) +
+      labs(title = glue("{stat} {exposure}: {year}-{month}"),
+          x = "Longitude",
+          y = "Latitude",
+          fill = glue("{unit}")
+          ) +
+      theme_minimal() -> p
+  ggsave(output_path, p, width=10, height=8)  
+
+  return(output_path)
+}
+
+years <- 2009:2024
+months <- 1:12
+geographies <- c("madagascar", "nepal")
+stats <- c("mean", "min", "max","total")
+exposures <- c("temperature", "precipitation", "dewpoint")
+
+plots <- crossing(years, months, geographies, stats, exposures) %>%
+  filter(!(exposures == "precipitation" & stats != "total")) %>%
+  filter(!(exposures == "temperature" & stats == "total")) %>%
+  filter(!(exposures == "dewpoint" & stats == "total"))
+
+df <- bind_rows(temperature_agg_long, precipitation_agg_long, dewpoint_agg_long)
+
+# plots %>%
+#   #sample_n(10) %>%
+#   rowwise() %>%
+#   mutate(plot = plot_by_year(df, year=years, month=months, geography=geographies, stat=stats, exposure=exposures))
+```
+
+
+```{r, eval=FALSE}
+plot_by_year <- function(year, month, geography, stat, exposure, df) {
+  if (exposure == "temperature") {
+    unit <- "°C"; range <- c(10, 40)
+  } else if (exposure == "precipitation") {
+    unit <- "mm"; range <- c(0, 0.4)
+  } else if (exposure == "dewpoint") {
+    unit <- "°C"; range <- c(-10, 30)
+  }
+
+  geometry <- switch(
+    geography,
+    "madagascar" = mdg_geometry,
+    "nepal" = npl_geometry
+  )
+
+  output_path <- here("notes/prototypes/figures", glue("{geography}_{stat}_{exposure}_{year}-{month}.png"))
+  message(glue("Generating image: {output_path}"))
+
+  df %>%
+    filter(stat == !!stat, geography == !!geography, year(date) == !!year, month(date) == !!month) %>%
+    mutate(value = ifelse(stat == "total", value, kelvin_to_celsius(value))) %>%
+    group_by(geography, year = year(date), healthshed_id) %>%
+    summarize(mean_temp = mean(value, na.rm = TRUE), .groups = "drop") %>%
+    left_join(geometry, by = "healthshed_id") %>%
+    st_as_sf() %>%
+    ggplot() +
+    geom_sf(aes(fill = mean_temp)) +
+    scale_fill_viridis_c(option = "C") +
+    labs(
+      title = glue("{stat} {exposure}: {year}-{month}"),
+      x = "Longitude",
+      y = "Latitude",
+      fill = glue("{unit}")
+    ) +
+    theme_minimal() -> p
+
+  ggsave(output_path, p, width = 10, height = 8)
+  return(output_path)
+}
+
+years <- 2009:2024
+months <- 1:12
+geographies <- c("madagascar", "nepal")
+stats <- c("mean", "min", "max", "total")
+exposures <- c("temperature", "precipitation", "dewpoint")
+
+plots <- crossing(
+  year = years,
+  month = months,
+  geography = geographies,
+  stat = stats,
+  exposure = exposures
+) %>%
+  filter(!(exposure == "precipitation" & stat != "total")) %>%
+  filter(!(exposure == "temperature" & stat == "total")) %>%
+  filter(!(exposure == "dewpoint" & stat == "total"))
+
+plot_results <- future_pmap(
+  .l = sample_n(plots, 5),
+  .f = function(year, month, geography, stat, exposure) {
+    plot_by_year(year, month, geography, stat, exposure, df = sample_n(df, 100000))
+  }
+)
+```
+
