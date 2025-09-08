@@ -145,19 +145,25 @@ def download_raw_era5(
     testing = cfg.development_mode # for testing
     output_dir = here("data/input") # output directory
     
-    target =os.path.join(_expand_path(output_dir), "{}_{}.nc".format(cfg.query['year'], cfg.query['month']))
+    geography = cfg.query.geography
+
+    target = os.path.join(_expand_path(output_dir), "{}_{}_{}.nc".format(geography, cfg.query['year'], cfg.query['month']))
     
     client = cdsapi.Client()
     
     query = _validate_query(cfg.query)
 
     dataset = cfg.dataset
+    # to make sure the query is valid at the end
+    del query['geography']
     
     # Send the query to the client
     if not testing:
-        bounds = create_bounding_box(cfg['mdg_shapefile'])
+        bounds = create_bounding_box(cfg.geographies[geography]['shapefile'])
         query['area'] = bounds
         client.retrieve(dataset, query).download(target)
+
+        print("Downloaded file to: {}".format(target))
     else:
         print(f"Testing mode. Not downloading data. Query is {query}")
 

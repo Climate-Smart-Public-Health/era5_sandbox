@@ -1,0 +1,9 @@
+madagascar:
+  shapefile: "https://data.humdata.org/dataset/26fa506b-0727-4d9d-a590-d2abee21ee22/resource/ed94d52e-349e-41be-80cb-62dc0435bd34/download/mdg_adm_bngrc_ocha_20181031_shp.zip"
+  healthsheds: "healthsheds2022.zip"
+  unique_id: "fs_uid"
+
+nepal:
+  shapefile: "https://data.humdata.org/dataset/07db728a-4f0f-4e98-8eb0-8fa9df61f01c/resource/2eb4c47f-fd6e-425d-b623-d35be1a7640e/download/npl_adm_nd_20240314_ab_shp.zip"
+  healthsheds: "Nepal_Healthsheds2024.zip"
+  unique_id: "fid"

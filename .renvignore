@@ -1,0 +1,6 @@
+^logs/
+^data/
+^slurm-.*\.out
+^_.github/
+sandbox
+logs
